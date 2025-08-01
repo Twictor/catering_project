@@ -49,6 +49,20 @@ import logging
 
 logger = logging.getLogger(__name__)
 
+from rest_framework.pagination import PageNumberPagination, LimitOffsetPagination
+from django_filters.rest_framework import DjangoFilterBackend
+from rest_framework import filters
+
+class DishPagination(PageNumberPagination):
+    page_size = 10  # Number of items per page
+    page_size_query_param = 'page_size'  # Parameter for changing the number of items on the page
+    max_page_size = 100
+
+class DishesPagination(LimitOffsetPagination):
+    default_limit = 10
+    limit_query_param = 'limit'
+    offset_query_param = 'offset'
+    max_limit = 100
 
 class DishSerializer(serializers.ModelSerializer):
     class Meta:
@@ -90,19 +104,38 @@ class OrderCreateSerializer(serializers.Serializer):
     
     
 
-class FoodAPIViewSet(viewsets.GenericViewSet):
-    @action(methods=["get"], detail=False, permission_classes=[AllowAny])
+class FoodAPIViewSet(viewsets.ViewSet):
+    pagination_class = DishPagination # Add this line
+    filter_backends = [DjangoFilterBackend, filters.SearchFilter]
+    search_fields = ['dishes__name'] # Search by dish name
+
+    @action(methods=["get"], detail=False, permission_classes=[permissions.IsAdminUser])
     def dishes(self, request: Request) -> Response:
         logger.info("Dishes endpoint was hit!")
         logger.info(f"Dishes endpoint called. Authorization header: {request.headers.get('Authorization')}")
         """
         Retrieve all dishes grouped by restaurant.
         """
-        restaurants = Restaurant.objects.prefetch_related(
-            Prefetch('dishes', queryset=Dish.objects.all())
+        queryset = Restaurant.objects.prefetch_related(
+            Prefetch(
+                'dishes',
+                queryset=Dish.objects.all()
+            )
         ).all()
-        serializer = RestaurantSerializer(restaurants, many=True)
-        return Response(data=serializer.data)
+
+        search_term = request.query_params.get('name', None)
+        if search_term:
+            queryset = Restaurant.objects.filter(dishes__name__icontains=search_term).prefetch_related(
+                Prefetch(
+                    'dishes',
+                    queryset=Dish.objects.filter(name__icontains=search_term)
+                )
+            ).distinct()
+
+        paginator = DishesPagination()
+        page = paginator.paginate_queryset(queryset, request)
+        serializer = RestaurantSerializer(page, many=True)
+        return paginator.get_paginated_response(serializer.data)
 
     @action(methods=["post"], detail=False, url_path="dishes", permission_classes=[IsAdminUser])
     def create_dish(self, request: Request) -> Response:
