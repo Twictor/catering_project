@@ -41,10 +41,9 @@ INSTALLED_APPS = [
     # 3-rd party
     "rest_framework",
     "rest_framework_simplejwt",
-
     # local apps
+    "catering",  
     "users",
-    "catering"
 ]
 
 MIDDLEWARE = [
@@ -141,7 +140,12 @@ AUTH_USER_MODEL = "users.User"
 REST_FRAMEWORK = {
     "DEFAULT_AUTHENTICATION_CLASSES": (
         "rest_framework_simplejwt.authentication.JWTAuthentication",
-    )
+    ),
+    # ... other settings
+    # Remove or comment out the following line if it exists and requires authentication
+    # 'DEFAULT_PERMISSION_CLASSES': [
+    #     'rest_framework.permissions.IsAuthenticated',
+    # ]
 }
 
 # client -> password + login
