@@ -69,17 +69,17 @@ class RegisterView(generics.CreateAPIView):
 
     def perform_create(self, serializer):
         user = serializer.save()
-        logger.info(f"User created with id: {user.id}")  # Add this line
-        user.is_active = False  # Set is_active to False
+        logger.info(f"User created with id: {user.id}")  
+        user.is_active = False  
         user.save()
         activation_key = generate_activation_key(user)
-        logger.info(f"Activation key generated: {activation_key}")  # Add this line
+        logger.info(f"Activation key generated: {activation_key}")  
         send_activation_email(user, activation_key)
         
         # Store activation key in cache
         cache_key = f"activation_key:{user.id}"
-        cache.set(cache_key, activation_key, timeout=settings.ACTIVATION_KEY_EXPIRATION_TIME)  # Timeout is 1 hour
-        logger.info(f"Activation key saved to cache with key: {cache_key}")  # Add this line
+        cache.set(cache_key, activation_key, timeout=settings.ACTIVATION_KEY_EXPIRATION_TIME)
+        logger.info(f"Activation key saved to cache with key: {cache_key}")  
 
         return Response(
             {"message": "User registered successfully. Check your email to activate your account."},
@@ -122,7 +122,7 @@ def resend_activation_email(request):
         return Response({"message": "User is already active."}, status=status.HTTP_200_OK)
 
     activation_key = generate_activation_key(user)
-    print("Sending activation email...") # Add this line
+    print("Sending activation email...") 
     send_activation_email(user, activation_key)
 
     return Response({"message": "Activation email resent successfully."}, status=status.HTTP_200_OK)

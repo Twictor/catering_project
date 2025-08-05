@@ -189,5 +189,5 @@ CACHES = {
 # Optionally, configure cache timeout
 CACHE_TTL = 60 * 5  # 5 minutes
 
-EMAIL_BACKEND = 'django.core.mail.backends.console.EmailBackend'  # For testing purposes
+EMAIL_BACKEND = 'django.core.mail.backends.console.EmailBackend'  
 DEFAULT_FROM_EMAIL = 'from@example.com'

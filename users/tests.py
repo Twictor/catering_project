@@ -8,7 +8,7 @@ from django.core import mail
 from django.conf import settings
 from django.utils import timezone
 import datetime
-from users.utils import generate_activation_key # Импортируем функцию generate_activation_key
+from users.utils import generate_activation_key 
 from django.dispatch import receiver
 from django.db.models.signals import post_save
 
@@ -36,7 +36,7 @@ class UserActivationTest(APITestCase):
         self.assertIsNotNone(activation_key_from_cache)
 
         # Construct the activation URL
-        activation_url = reverse('activate', kwargs={'activation_key': activation_key_from_cache}) # Changed 'activate_user' to 'activate'
+        activation_url = reverse('activate', kwargs={'activation_key': activation_key_from_cache}) 
 
         # Activate the user
         response = self.client.get(activation_url)
@@ -51,8 +51,7 @@ class UserActivationTest(APITestCase):
 
     def test_invalid_activation_key(self):
         # Construct an invalid activation URL
-        activation_url = reverse('activate', kwargs={'activation_key': 'invalid-key'}) # Changed 'activate_user' to 'activate'
-
+        activation_url = reverse('activate', kwargs={'activation_key': 'invalid-key'}) 
         # Attempt to activate the user with an invalid key
         response = self.client.get(activation_url)
         self.assertEqual(response.status_code, 400)
