@@ -10,7 +10,7 @@ from catering.views import router as catering_router
 urlpatterns = [
     path("admin/", admin.site.urls),
     path('auth/token/', TokenObtainPairView.as_view(), name='obtain_token'),
-    path("users/", include(users_router.urls)),
+    path("users/", include("users.urls")),  # This line is important
     path("catering/", include(catering_router.urls)),
     path('food/', include('catering.urls')),
     path('api/token/', TokenObtainPairView.as_view(), name='token_obtain_pair'),

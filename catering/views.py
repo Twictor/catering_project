@@ -108,7 +108,8 @@ class FoodAPIViewSet(viewsets.ViewSet):
     pagination_class = DishPagination # Add this line
     filter_backends = [DjangoFilterBackend, filters.SearchFilter]
     search_fields = ['dishes__name'] # Search by dish name
-
+    
+    
     @action(methods=["get"], detail=False, permission_classes=[permissions.IsAdminUser])
     def dishes(self, request: Request) -> Response:
         logger.info("Dishes endpoint was hit!")

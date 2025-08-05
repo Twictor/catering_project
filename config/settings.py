@@ -31,8 +31,8 @@ ALLOWED_HOSTS = []
 
 # Application definition
 
-INSTALLED_APPS = [
-    "admin_actions",
+INSTALLED_APPS = [    
+    'django.contrib.sites',
     "django.contrib.admin",
     "django.contrib.auth",
     "django.contrib.contenttypes",
@@ -46,7 +46,10 @@ INSTALLED_APPS = [
     # local apps
     "catering",  
     "users",
+    "admin_actions"     
 ]
+
+SITE_ID = 1 
 
 MIDDLEWARE = [
     "django.middleware.security.SecurityMiddleware",
@@ -58,7 +61,7 @@ MIDDLEWARE = [
     "django.middleware.clickjacking.XFrameOptionsMiddleware",
 ]
 
-ROOT_URLCONF = "config.urls"
+ROOT_URLCONF = 'config.urls'  # Ensure this is correct
 
 TEMPLATES = [
     {
@@ -168,3 +171,23 @@ SIMPLE_JWT = {
     "SIGNING_KEY": SECRET_KEY,
     "AUTH_HEADER_TYPES": ("Bearer", ),
 }
+
+# ... existing settings ...
+ACTIVATION_KEY_EXPIRATION_TIME = 3600  # e.g., 1 hour
+ACTIVATION_URL = "activate/"
+
+CACHES = {
+    'default': {
+        'BACKEND': 'django_redis.cache.RedisCache',
+        'LOCATION': 'redis://127.0.0.1:6379/1',
+        'OPTIONS': {
+            'CLIENT_CLASS': 'django_redis.client.DefaultClient',
+        }
+    }
+}
+
+# Optionally, configure cache timeout
+CACHE_TTL = 60 * 5  # 5 minutes
+
+EMAIL_BACKEND = 'django.core.mail.backends.console.EmailBackend'  # For testing purposes
+DEFAULT_FROM_EMAIL = 'from@example.com'
