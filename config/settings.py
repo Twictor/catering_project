@@ -12,6 +12,7 @@ https://docs.djangoproject.com/en/5.2/ref/settings/
 
 from datetime import timedelta
 from pathlib import Path
+import os
 
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
 BASE_DIR = Path(__file__).resolve().parent.parent
@@ -21,12 +22,11 @@ BASE_DIR = Path(__file__).resolve().parent.parent
 # See https://docs.djangoproject.com/en/5.2/howto/deployment/checklist/
 
 # SECURITY WARNING: keep the secret key used in production secret!
-SECRET_KEY = "django-insecure-_u2*0)=@b4px)on+aj!#u^iq73p#de(m@7b*cn*es(d7d63%c+"
-
+DJANGO_SECRET_KEY = os.getenv("DJANGO_SECRET_KEY")
 # SECURITY WARNING: don't run with debug turned on in production!
-DEBUG = True
+DEBUG = bool(os.getenv("DJANGO_DEBUG"))
 
-ALLOWED_HOSTS = []
+ALLOWED_HOSTS = [*os.getenv("DJANGO_ALLOWED_HOSTS", default="").split(",")]
 
 
 # Application definition
@@ -87,11 +87,11 @@ WSGI_APPLICATION = "config.wsgi.application"
 DATABASES = {
     "default": {
         "ENGINE": "django.db.backends.postgresql",
-        "NAME": "postgres",
-        "USER": "postgres",
-        "PASSWORD": "postgres",
-        "HOST": "localhost",
-        "PORT": "5432",
+        "NAME": os.getenv("DJANGO_DB_NAME", default="postgres"),
+        "USER": os.getenv("DJANGO_DB_USER", default="postgres"),
+        "PASSWORD": os.getenv("DJANGO_DB_PASSWORD", default="postgres"),
+        "HOST": os.getenv("DJANGO_DB_HOST", default="database"),
+        "PORT": os.getenv("DJANGO_DB_PORT", default="5432"),
     }
 }
 
@@ -168,7 +168,7 @@ SIMPLE_JWT = {
     "REFRESH_TOKEN_LIFETIME": timedelta(days=1),
     "UPDATE_LAST_LOGIN": True,
     "ALGORITHM": "HS256",
-    "SIGNING_KEY": SECRET_KEY,
+    "SIGNING_KEY": DJANGO_SECRET_KEY,
     "AUTH_HEADER_TYPES": ("Bearer", ),
 }
 
@@ -179,7 +179,7 @@ ACTIVATION_URL = "activate/"
 CACHES = {
     'default': {
         'BACKEND': 'django_redis.cache.RedisCache',
-        'LOCATION': 'redis://127.0.0.1:6379/1',
+        'LOCATION': os.getenv("DJANGO_CACHE_URL", default="redis://cache:6379/0"),
         'OPTIONS': {
             'CLIENT_CLASS': 'django_redis.client.DefaultClient',
         }
@@ -189,5 +189,7 @@ CACHES = {
 # Optionally, configure cache timeout
 CACHE_TTL = 60 * 5  # 5 minutes
 
-EMAIL_BACKEND = 'django.core.mail.backends.console.EmailBackend'  
+EMAIL_BACKEND = 'django.core.mail.backends.console.EmailBackend'
+EMAIL_HOST = os.getenv("DJANGO_EMAIL_HOST", default="mailing")
+EMAIL_PORT = int(os.getenv("DJANGO_EMAIL_PORT", default=1025))
 DEFAULT_FROM_EMAIL = 'from@example.com'
