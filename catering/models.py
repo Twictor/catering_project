@@ -45,6 +45,29 @@ class Order(models.Model):
         return f"[{self.pk}] {self.status} for {self.user.email}"
 
 
+    def items_by_restaurant(self) -> dict["Restaurant", models.QuerySet["OrderItem"]]:
+        results = {}
+        
+        qs = self.items.all()
+
+
+        restaurants = {item.dish.restaurant for item in qs}
+        for restaurant in restaurants:
+            results[restaurant] = qs.filter(dish__restaurant=restaurant)
+        
+        return results
+
+        # """
+        # Group order items by restaurant.
+        # """
+        # return (
+        #     self.items
+        #     .select_related("dish__restaurant")
+        #     .values("dish__restaurant")
+        #     .annotate(items=models.Count("id"))
+        # )
+
+
 class OrderItem(models.Model):
     class Meta:
         db_table = "order_items"

@@ -1,0 +1,3 @@
+
+CREATE DATABASE IF NOT EXISTS catering_db;
+GRANT ALL PRIVILEGES ON DATABASE catering_db TO postgres;

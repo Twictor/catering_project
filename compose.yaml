@@ -1,40 +1,29 @@
+version: "3.9"
 services:
   api:
     image: myapi:latest
     build:
       dockerfile: Dockerfile
     ports:
-      - "8080:8080"
+      - "8000:8000"  
     env_file:
       - .env
     depends_on:
-      database:
+      db:
         condition: service_healthy
       cache:
         condition: service_started
       mailing:
         condition: service_started
 
-  database:
-    image: postgres:17
-    env_file:
-      - .env
-    ports:
-      - "5432:5432"
-    environment:
-      POSTGRES_USER: ${POSTGRES_USER}
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
-      POSTGRES_DB: ${POSTGRES_DB}
-    volumes:
-      - db_data:/var/lib/postgresql/data
-    healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER} -d ${POSTGRES_DB}"]
-      interval: 10s
-      timeout: 5s
-      retries: 5
+  db:
+    image: postgres:16.3-alpine
+    
 
-  cache:
-    image: redis:latest
+  cache: 
+    image: redis:7.2.5-alpine
+    container_name: redis_cache
+    hostname: cache
     ports:
       - "6379:6379"
 
@@ -43,6 +32,82 @@ services:
     ports:
       - "1025:1025"
       - "8025:8025"
+
+  django:
+    build: .
+    
+    depends_on:
+      - db
+      - cache 
+
+  celery_worker:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    command: celery -A config worker -l info
+    env_file:
+      - .env
+    depends_on:
+      - cache
+      - db
+    volumes:
+      - .:/app
+      
+  celery_high:
+    build: .
+    command: celery -A config worker -l info -Q high_priority -c 2
+    depends_on:
+      - django
+      - cache
+    environment:
+      - DJANGO_SETTINGS_MODULE=config.settings
+      - CELERY_BROKER_URL=${CELERY_BROKER_URL:-redis://cache:6379/1}
+      - CELERY_RESULT_BACKEND=${CELERY_RESULT_BACKEND:-redis://cache:6379/2}
+
+  celery_low:
+    build: .
+    command: celery -A config worker -l info -Q low_priority -c 2
+    depends_on:
+      - django
+      - cache
+    environment:
+      - DJANGO_SETTINGS_MODULE=config.settings
+      - CELERY_BROKER_URL=${CELERY_BROKER_URL:-redis://cache:6379/1}
+      - CELERY_RESULT_BACKEND=${CELERY_RESULT_BACKEND:-redis://cache:6379/2}
+
+  flower:
+    build: .
+    command: celery -A config flower --broker=${CELERY_BROKER_URL:-redis://cache:6379/1}
+    ports:
+      - "5555:5555"
+    depends_on:
+      - django
+      - cache
+
+  silpo-mock:
+    build:
+      context: .
+      dockerfile: Dockerfile.test
+      target: silpo
+    container_name: catering-silpo-mock
+    ports:
+      - "8001:8000"
+  kfc-mock:
+    build:
+      context: .
+      dockerfile: Dockerfile.test
+      target: kfc
+    container_name: catering-kfc-mock
+    ports:
+      - "8002:8000"
+  uklon-mock:
+    build:
+      context: .
+      dockerfile: Dockerfile.test
+      target: uklon
+    container_name: catering-uklon-mock
+    ports:
+      - "8003:8000"
 
 volumes:
   db_data:

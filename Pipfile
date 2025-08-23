@@ -12,8 +12,27 @@ django-admin-actions = "*"
 psycopg2-binary = "*"
 django-filter = "*"
 django-redis = "*"
+shared = "*"
+python-dotenv = "*"
+celery = "*"
+celery-types = "*"
 
 [dev-packages]
+black = "*"
+django-stubs = { version = "==5.2.1", extras = ["compatible-mypy"] }
+djangorestframework-stubs = { version = "==3.16.0", extras = ["compatible-mypy"] }
+isort = "*"
+pytest = "*"
+pytest-django = "*"
+pytest-mock = "*"
+pytest-cov = "*"
+pre-commit = "*"
+mypy = "*"
+fastapi = "*"
+uvicorn = "*"
+pydantic = "==2.11.7"
+httpx = "==0.28.1"
+celery-types = "==0.23.0" # Worker
 
 [requires]
 python_version = "3.13"

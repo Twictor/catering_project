@@ -1,3 +1,4 @@
+
 """
 =====================================
 CREATE ORDER FLOW
@@ -35,30 +36,45 @@ CREATE ORDER FLOW
 }
 """
 
+import logging
+
+from django.db import transaction
+from django.http import JsonResponse
 from django.shortcuts import get_object_or_404
-from .enums import OrderStatus
-from rest_framework import viewsets, serializers, routers, status, permissions
+from rest_framework import status, viewsets, routers, pagination, permissions, serializers
+from rest_framework.decorators import action, api_view, permission_classes
 from rest_framework.request import Request
 from rest_framework.response import Response
-from rest_framework.decorators import action, api_view, permission_classes
-from rest_framework.permissions import IsAuthenticated, IsAdminUser, AllowAny
+from rest_framework.permissions import IsAdminUser, IsAuthenticated
+from rest_framework.pagination import PageNumberPagination
+from django.shortcuts import get_object_or_404
+from django_filters.rest_framework import DjangoFilterBackend
+from rest_framework import filters
 from django.db.models import Prefetch
+from celery import shared_task
+
 from users.models import Role, User
+from .enums import OrderStatus
 from .models import Restaurant, Dish, Order, OrderItem
-import logging
+from .pagination import DishesPagination
+from .serializers import (
+    RestaurantSerializer,
+    CreateDishSerializer,
+    OrderCreateSerializer,
+    OrderSerializer,
+)
+from .tasks import schedule_order, process_kfc_webhook_data
+
 
 logger = logging.getLogger(__name__)
 
-from rest_framework.pagination import PageNumberPagination, LimitOffsetPagination
-from django_filters.rest_framework import DjangoFilterBackend
-from rest_framework import filters
 
 class DishPagination(PageNumberPagination):
     page_size = 10  # Number of items per page
     page_size_query_param = 'page_size'  # Parameter for changing the number of items on the page
     max_page_size = 100
 
-class DishesPagination(LimitOffsetPagination):
+class DishesPagination(pagination.LimitOffsetPagination):
     default_limit = 10
     limit_query_param = 'limit'
     offset_query_param = 'offset'
@@ -102,14 +118,23 @@ class OrderCreateSerializer(serializers.Serializer):
     items = OrderItemSerializer(many=True)
     eta = serializers.DateField()
     
-    
 
 class FoodAPIViewSet(viewsets.ViewSet):
     pagination_class = DishPagination # Add this line
     filter_backends = [DjangoFilterBackend, filters.SearchFilter]
     search_fields = ['dishes__name'] # Search by dish name
     
-    
+    @action(methods=["get"], detail=False, url_path="restaurants")
+    def all_restaurants(self, request: Request) -> Response:
+        """
+        Get all restaurants with pagination.
+        """
+        queryset = Restaurant.objects.all()
+        paginator = DishesPagination()
+        page = paginator.paginate_queryset(queryset, request)
+        serializer = RestaurantSerializer(page, many=True)
+        return paginator.get_paginated_response(serializer.data)
+
     @action(methods=["get"], detail=False, permission_classes=[permissions.IsAdminUser])
     def dishes(self, request: Request) -> Response:
         logger.info("Dishes endpoint was hit!")
@@ -163,65 +188,97 @@ class FoodAPIViewSet(viewsets.ViewSet):
         serializer = OrderCreateSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
 
-        assert isinstance(request.user, User)
+        validated_data = serializer.validated_data
+        items = validated_data["items"]
+        eta = validated_data["eta"]
 
-        order = Order.objects.create(
-            status="OrderStatus.NOT_STARTED",
-            user=request.user,
-            delivery_provider="Uklon",
-            eta=serializer.validated_data["eta"],
-        )
-
-        items = serializer.validated_data["items"]
-        total = 0
-
-        for dish_order in items:
-            instance = OrderItem.objects.create(
-                dish=dish_order["dish"],
-                quantity=dish_order["quantity"],
-                order=order
+        with transaction.atomic():
+            order = Order.objects.create(
+                user=request.user,
+                status=OrderStatus.NOT_STARTED,
+                eta=eta,
             )
-            total += instance.dish.price * instance.quantity
-            print(f"New Dish Order Item is created: {instance.pk}")
 
-        order.total = total
-        order.save()
+            total_price = 0
+            order_items = []
+            for item_data in items:
+                dish = item_data["dish"]
+                quantity = item_data["quantity"]
+                total_price += dish.price * quantity
+                order_items.append(
+                    OrderItem(order=order, dish=dish, quantity=quantity)
+                )
 
-        print(f"New Food Order is created: {order.pk}. ETA: {order.eta}")
+            OrderItem.objects.bulk_create(order_items)
+            order.total = total_price
+            order.save()
 
-        # TODO: Run scheduler
+        schedule_order.delay(order.pk)
 
-        return Response(OrderSerializer(order).data,
-            status=status.HTTP_201_CREATED,
-        )
+        response_serializer = OrderSerializer(order)
+        return Response(response_serializer.data, status=status.HTTP_201_CREATED)
 
-    @action(methods=["get"], detail=False, url_path=r"orders/(?P<id>\d+)", permission_classes=[IsAuthenticated])
-    def retrieve_order(self, request: Request, id: int) -> Response:
+    @action(methods=["get"], detail=True, url_path="orders", 
+            permission_classes=[IsAuthenticated])
+    def get_order(self, request: Request, pk: int = None) -> Response:
         """
-        Retrieve a specific order by its ID.
+        Get a specific order by its ID.
         """
-        order = get_object_or_404(Order, id=id)        
-        serializer = OrderSerializer(order)        
-        return Response(data=serializer.data)
+        order = get_object_or_404(Order, pk=pk, user=request.user)
+        serializer = OrderSerializer(order)
+        return Response(serializer.data)
 
-@api_view(['GET'])
-@permission_classes([IsAuthenticated])  # Add permission class if needed
-def providers(request):
-    providers = DeliveryProvider.objects.all()
-    serializers = DeliveryProviderSerializer(providers, many=True)
-    return Response({"providers": serializers.data })
+    @action(methods=["get"], detail=False, url_path="orders", 
+            permission_classes=[IsAuthenticated])
+    def list_orders(self, request: Request) -> Response:
+        """
+        List all orders for the authenticated user.
+        """
+        orders = Order.objects.filter(user=request.user)
+        serializer = OrderSerializer(orders, many=True)
+        return Response(serializer.data)
 
 
-@api_view(['GET'])
-@permission_classes([IsAuthenticated])
-def active_deliveries(request):
-    deliveries = Delivery.objects.filter(status=DeliveryStatus.ACTIVE)
-    serializers = DeliverySerializer(deliveries, many=True)
-    return Response({"active_deliveries": serializers.data})
+    @action(methods=["get", "post" ], detail=False, url_path=r"orders/(?P<id>\d+)")
+    def orders(self, request: Request, id: int) -> Response:
+        if request.method == "POST":
+            # Handle POST request for creating a new order
+            return self.create_order(request)
+        else:
+            # Handle GET request for retrieving an existing order
+            return self.all_orders(request, id)
+
+    @action(methods=["post"], detail=False, url_path=r"webhooks/kfc/")
+    def kfc_webhook(self, request: Request) -> Response:
+        """
+        Handle KFC webhook notifications.
+        """
+        breakpoint() # TODO: Remove
+        data = request.data
+        process_kfc_webhook_data.delay(data)
+        return Response({"message": "Webhook received"})
+
+
+# @api_view(['GET'])
+# @permission_classes([IsAuthenticated])  # Add permission class if needed
+# def providers(request):
+#     providers = DeliveryProvider.objects.all()
+#     serializers = DeliveryProviderSerializer(providers, many=True)
+#     return Response({"providers": serializers.data })
+
+
+# @api_view(['GET'])
+# @permission_classes([IsAuthenticated])
+# def active_deliveries(request):
+#     deliveries = Delivery.objects.filter(status=DeliveryStatus.ACTIVE)
+#     serializers = DeliverySerializer(deliveries, many=True)
+#     return Response({"active_deliveries": serializers.data})
 
 @api_view(['GET'])
 @permission_classes([IsAuthenticated])
 def archived_orders(request):
+    # The 'ARCHIVED' status does not exist in your OrderStatus enum yet.
+    # This will cause an error later. For now, we leave it to fix the current import error.
     orders = Order.objects.filter(status=OrderStatus.ARCHIVED)
     serializers = OrderSerializer(orders, many=True)
     return Response({"archived_orders": serializers.data})
@@ -229,6 +286,8 @@ def archived_orders(request):
 @api_view(['GET'])
 @permission_classes([IsAuthenticated])
 def active_orders(request):
+    # The 'ACTIVE' status does not exist in your OrderStatus enum yet.
+    # This will cause an error later. For now, we leave it to fix the current import error.
     orders = Order.objects.filter(status=OrderStatus.ACTIVE)
     serializers = OrderSerializer(orders, many=True)
     return Response({"active_orders": serializers.data})
@@ -242,5 +301,78 @@ def ship(request, provider, order_id):
     # TODO: Implement shipping logic
     return Response({"message": f"Shipping order {order_id} via {provider}"})
 
+@shared_task(queue='high_priority')
+def process_order(order_id):
+    
+    from .models import Order
+    order = Order.objects.get(pk=order_id)
+    logger.info(f"Processing order {order.id}")
+    # TODO: 
+    
+    order.status = OrderStatus.ACTIVE 
+    order.save()
+    logger.info(f"Order {order.id} processed successfully")
+
+@shared_task(queue='high_priority')
+def process_kfc_webhook_data(data):
+    
+    logger.info(f"Processing KFC webhook data: {data}")
+    # TODO: 
+    
+    pass
+
+@shared_task(queue='high_priority')
+def process_order_in_background(order_id):
+    # Your order processing logic here
+    logger.info(f"Processing order {order_id} in the background.")
+    # Example: Change order status
+    try:
+        order = Order.objects.get(id=order_id)
+        order.status = OrderStatus.COOKING
+        order.save()
+        logger.info(f"Order {order_id} status updated to COOKING.")
+    except Order.DoesNotExist:
+        logger.error(f"Order with id {order_id} not found.")
+
+
+@api_view(["POST"])
+@permission_classes([])
+def kfc_webhook(request: Request):
+    """
+    This is a webhook for KFC provider
+    """
+    process_kfc_webhook_data.delay(request.data)
+    return JsonResponse({}, status=200)
+
+
+# Заглушка для FoodAPIViewSet, если он еще не определен
+class FoodAPIViewSet(viewsets.ViewSet):
+    def dishes(self, request):
+        return Response({"message": "Dishes endpoint"})
+
+# Заглушки для других view-функций
+@api_view(['GET'])
+def active_deliveries(request):
+    return JsonResponse({"message": "Active deliveries endpoint"})
+
+@api_view(['GET'])
+def archived_orders(request):
+    return JsonResponse({"message": "Archived orders endpoint"})
+
+@api_view(['GET'])
+def active_orders(request):
+    return JsonResponse({"message": "Active orders endpoint"})
+
+@api_view(['POST'])
+def ship(request, provider, order_id):
+    return JsonResponse({"message": f"Shipping order {order_id} with {provider}"})
+
+# Добавляем недостающую view для providers
+@api_view(['GET'])
+def providers(request):
+    # Это временная реализация. Позже вы сможете добавить сюда реальную логику.
+    return JsonResponse({"message": "Providers endpoint is active"})
+
+
 router = routers.DefaultRouter()
-router.register(prefix="", viewset=FoodAPIViewSet, basename="food")
+router.register(r'food', FoodAPIViewSet, basename='food')

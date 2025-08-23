@@ -1,3 +1,4 @@
+
 """
 Django settings for config project.
 
@@ -23,6 +24,7 @@ BASE_DIR = Path(__file__).resolve().parent.parent
 
 # SECURITY WARNING: keep the secret key used in production secret!
 DJANGO_SECRET_KEY = os.getenv("DJANGO_SECRET_KEY")
+SECRET_KEY = DJANGO_SECRET_KEY
 # SECURITY WARNING: don't run with debug turned on in production!
 DEBUG = bool(os.getenv("DJANGO_DEBUG"))
 
@@ -87,11 +89,11 @@ WSGI_APPLICATION = "config.wsgi.application"
 DATABASES = {
     "default": {
         "ENGINE": "django.db.backends.postgresql",
-        "NAME": os.getenv("DJANGO_DB_NAME", default="postgres"),
-        "USER": os.getenv("DJANGO_DB_USER", default="postgres"),
-        "PASSWORD": os.getenv("DJANGO_DB_PASSWORD", default="postgres"),
-        "HOST": os.getenv("DJANGO_DB_HOST", default="database"),
-        "PORT": os.getenv("DJANGO_DB_PORT", default="5432"),
+        "NAME": os.getenv("POSTGRES_DB", "postgres"),
+        "USER": os.getenv("POSTGRES_USER", "postgres"),
+        "PASSWORD": os.getenv("POSTGRES_PASSWORD", "postgres"),
+        "HOST": os.getenv("POSTGRES_HOST", "database"),  # Убедитесь, что здесь "database"
+        "PORT": os.getenv("POSTGRES_PORT", "5432"),
     }
 }
 
@@ -182,7 +184,8 @@ CACHES = {
         'LOCATION': os.getenv("DJANGO_CACHE_URL", default="redis://cache:6379/0"),
         'OPTIONS': {
             'CLIENT_CLASS': 'django_redis.client.DefaultClient',
-        }
+        },
+        'TIMEOUT': None,  # Записи в кэше живут вечно
     }
 }
 
@@ -193,3 +196,33 @@ EMAIL_BACKEND = 'django.core.mail.backends.console.EmailBackend'
 EMAIL_HOST = os.getenv("DJANGO_EMAIL_HOST", default="mailing")
 EMAIL_PORT = int(os.getenv("DJANGO_EMAIL_PORT", default=1025))
 DEFAULT_FROM_EMAIL = 'from@example.com'
+
+
+# =====================================================================
+# CELERY SECTION
+# =====================================================================
+CELERY_BROKER_URL = os.getenv("CELERY_BROKER_URL", "redis://cache:6379/1")
+CELERY_RESULT_BACKEND = os.getenv("CELERY_RESULT_BACKEND", "redis://cache:6379/2")
+CELERY_ACCEPT_CONTENT = ['application/json']
+CELERY_TASK_SERIALIZER = 'json'
+CELERY_RESULT_SERIALIZER = 'json'
+CELERY_TIMEZONE = 'UTC'
+
+
+CELERY_BROKER_TRANSPORT_OPTIONS = {
+    'visibility_timeout': 3600
+}
+
+# Celery Queues
+from kombu import Queue
+
+CELERY_TASK_QUEUES = (
+    Queue('high_priority', routing_key='high_priority'),
+    Queue('low_priority', routing_key='low_priority'),
+)
+
+CELERY_TASK_ROUTES = {
+    'users.tasks.send_activation_email': {'queue': 'low_priority'},
+    'catering.tasks.order_in_silpo': {'queue': 'high_priority'},
+    'catering.tasks.order_in_kfc': {'queue': 'high_priority'},
+}
