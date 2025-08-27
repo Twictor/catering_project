@@ -141,6 +141,15 @@ STATIC_URL = "static/"
 DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"
 
 
+# =====================================================================
+# PROVIDER SETTINGS
+# =====================================================================
+KFC_PROVIDER_URL = os.getenv("KFC_PROVIDER_URL", "http://kfc-provider:8001")
+SILPO_PROVIDER_URL = os.getenv("SILPO_PROVIDER_URL", "http://silpo-provider:8002")
+UBER_PROVIDER_URL = os.getenv("UBER_PROVIDER_URL", "http://uber-provider:8003")
+UKLON_PROVIDER_URL = os.getenv("UKLON_PROVIDER_URL", "http://uklon-provider:8004")
+
+
 AUTH_USER_MODEL = "users.User"
 
 
@@ -201,8 +210,8 @@ DEFAULT_FROM_EMAIL = 'from@example.com'
 # =====================================================================
 # CELERY SECTION
 # =====================================================================
-CELERY_BROKER_URL = os.getenv("CELERY_BROKER_URL", "redis://cache:6379/1")
-CELERY_RESULT_BACKEND = os.getenv("CELERY_RESULT_BACKEND", "redis://cache:6379/2")
+CELERY_BROKER_URL = os.getenv("CELERY_BROKER_URL", "redis://broker:6379/0")
+CELERY_RESULT_BACKEND = os.getenv("CELERY_RESULT_BACKEND", "redis://broker:6379/1")
 CELERY_ACCEPT_CONTENT = ['application/json']
 CELERY_TASK_SERIALIZER = 'json'
 CELERY_RESULT_SERIALIZER = 'json'

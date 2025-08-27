@@ -37,6 +37,10 @@ CREATE ORDER FLOW
 """
 
 import logging
+import json
+from datetime import datetime
+from dataclasses import asdict
+from typing import Any
 
 from django.db import transaction
 from django.http import JsonResponse
@@ -48,6 +52,7 @@ from rest_framework.response import Response
 from rest_framework.permissions import IsAdminUser, IsAuthenticated
 from rest_framework.pagination import PageNumberPagination
 from django.shortcuts import get_object_or_404
+from django.views.decorators.csrf import csrf_exempt
 from django_filters.rest_framework import DjangoFilterBackend
 from rest_framework import filters
 from django.db.models import Prefetch
@@ -64,6 +69,10 @@ from .serializers import (
     OrderSerializer,
 )
 from .tasks import schedule_order, process_kfc_webhook_data
+from .shared.cache import CacheService
+from .data_classes import TrackingOrder
+from .mapper import DELIVERY_EXTERNAL_TO_INTERNAL
+from .providers import uber
 
 
 logger = logging.getLogger(__name__)
@@ -118,6 +127,48 @@ class OrderCreateSerializer(serializers.Serializer):
     items = OrderItemSerializer(many=True)
     eta = serializers.DateField()
     
+
+class UberWebhookSerializer(serializers.Serializer):
+    order_id = serializers.IntegerField()
+    status = serializers.ChoiceField(choices=uber.DeliveryStatus.choices(), required=False)
+    location = serializers.CharField(required=False) # Assuming location is a string for simplicity
+
+
+class UberWebhook(APIView):
+    permission_classes = [permissions.AllowAny]
+    authentication_classes = []
+
+    def post(self, request, *args, **kwargs):
+        serializer = UberWebhookSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        
+        validated_data = serializer.validated_data
+        order_id = validated_data["order_id"]
+        external_status = validated_data.get("status")
+        location = validated_data.get("location")
+
+        try:
+            internal_status = DELIVERY_EXTERNAL_TO_INTERNAL["uber"][external_status]
+            
+            order = Order.objects.get(pk=order_id)
+            order.status = internal_status
+            order.save(update_fields=["status"])
+
+            # Update cache
+            cache = CacheService()
+            tracking_order_data = cache.get(namespace="orders", key=str(order.pk))
+            if tracking_order_data:
+                tracking_order = TrackingOrder(**tracking_order_data)
+                tracking_order.delivery["status"] = internal_status
+                cache.set("orders", str(order.pk), asdict(tracking_order))
+
+            logger.info(f"Uber webhook: Order {order_id} status updated to {internal_status}")
+            return Response(status=status.HTTP_200_OK)
+
+        except (Order.DoesNotExist, KeyError) as e:
+            logger.error(f"Error processing Uber webhook for order {order_id}: {e}")
+            return Response(status=status.HTTP_400_BAD_REQUEST)
+
 
 class FoodAPIViewSet(viewsets.ViewSet):
     pagination_class = DishPagination # Add this line
@@ -367,12 +418,47 @@ def active_orders(request):
 def ship(request, provider, order_id):
     return JsonResponse({"message": f"Shipping order {order_id} with {provider}"})
 
-# Добавляем недостающую view для providers
+
 @api_view(['GET'])
-def providers(request):
-    # Это временная реализация. Позже вы сможете добавить сюда реальную логику.
+def providers(request):    
     return JsonResponse({"message": "Providers endpoint is active"})
 
+@csrf_exempt   
+def kfc_webhook(request):
+    """Process KFC Order webhooks"""
+    data: dict = json.loads(json.dumps(request.POST))
+
+    cache = CacheService()
+    restaurant = Restaurant.objects.get(name="kfc")
+    kfc_cahe_order = cache.get("kfc_orders", key=data["id"])
+
+    # get internal order from mapping
+    # add logging if order wasn't found
+    order: Order = Order.objects.get(id=kfc_cahe_order["internal_order_id"])
+    tracking_order = TrackingOrder(**cache.get(namespace="orders", key=str(order.pk)))
+    tracking_order.restaurants[str(restaurant.pk)] |= {
+        "external_id": data["id"],
+        "status": OrderStatus.COOKED,
+    
+    }
+    
+    cache.set(
+        namespace="orders", 
+        key=str(order.pk), 
+        value=asdict(tracking_order)
+    )
+
+    all_orders_cooked(order.pk)
+    #     # because KFC return webhok only when order is cooked
+    #     order.status = OrderStatus.COOKED
+    #     order.save()
+    #     print("All orders are cooked")
+    # else:
+    #     print("Not all orders are cooked yet")
+
+    # print(f"KFC Webhook received data: {data}")
+
+    return JsonResponse({"message": "ok"})
 
 router = routers.DefaultRouter()
 router.register(r'food', FoodAPIViewSet, basename='food')

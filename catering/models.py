@@ -57,15 +57,19 @@ class Order(models.Model):
         
         return results
 
-        # """
-        # Group order items by restaurant.
-        # """
-        # return (
-        #     self.items
-        #     .select_related("dish__restaurant")
-        #     .values("dish__restaurant")
-        #     .annotate(items=models.Count("id"))
-        # )
+        def delivery_meta(self) -> tuple[str, str]:
+            """Return addresses without duplicates"""
+
+            return(
+                self.item.select_related("dish__restaurant")
+                .values_list(
+                    "dish__restaurant__name",
+                    "dish__restaurant__address",
+             
+                )
+                    
+                .distinct(),
+            )
 
 
 class OrderItem(models.Model):

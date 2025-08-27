@@ -39,3 +39,4 @@
 
 *   Docker
 *   Docker Compose
+*   celery

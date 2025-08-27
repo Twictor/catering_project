@@ -50,3 +50,23 @@ flower-up:
 
 flower-down:
     docker compose stop flower
+
+
+run:
+    python manage.py runserver
+
+docker:
+    docker compose up -d database cache brocker mailing
+
+
+silpo_mock:
+    python -m uvicorn silpo.mock.main:app --port 8001 --reload
+
+kfc_mock:
+    python -m uvicorn kfc.mock.main:app --port 8002 --reload
+
+uklon_mock:
+    python -m uvicorn uklon.mock.main:app --port 8003 --reload
+
+uber_mock:
+    python -m uvicorn uber.mock.main:app --port 8004 --reload

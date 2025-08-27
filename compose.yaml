@@ -1,9 +1,11 @@
+
 version: "3.9"
 services:
   api:
     image: myapi:latest
     build:
       dockerfile: Dockerfile
+    command: python manage.py runserver 0.0.0.0:8000
     ports:
       - "8000:8000"  
     env_file:
@@ -15,17 +17,41 @@ services:
         condition: service_started
       mailing:
         condition: service_started
+    volumes:
+      - .:/app
 
   db:
     image: postgres:16.3-alpine
+    container_name: catering_db
+    restart: always
+    env_file:
+      - .env
+    volumes:
+      - db_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $POSTGRES_USER -d $POSTGRES_DB"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
     
 
   cache: 
-    image: redis:7.2.5-alpine
-    container_name: redis_cache
-    hostname: cache
+    image: redis:7-alpine
+    container_name: catering_cache
+    restart: always
     ports:
       - "6379:6379"
+    volumes:
+      - cache_data:/data
+
+  broker:
+    image: redis:7-alpine
+    container_name: catering_broker
+    restart: always
+    ports:
+      - "6380:6379"
+    volumes:
+      - broker_data:/data
 
   mailing:
     image: axllent/mailpit:latest
@@ -33,56 +59,49 @@ services:
       - "1025:1025"
       - "8025:8025"
 
-  django:
-    build: .
-    
-    depends_on:
-      - db
-      - cache 
 
   celery_worker:
     build:
       context: .
       dockerfile: Dockerfile
-    command: celery -A config worker -l info
+    command: pipenv run celery -A config worker -l info
     env_file:
       - .env
     depends_on:
-      - cache
+      - broker
       - db
-    volumes:
-      - .:/app
+
       
   celery_high:
     build: .
-    command: celery -A config worker -l info -Q high_priority -c 2
+    command: pipenv run celery -A config worker -l info -Q high_priority -c 2
     depends_on:
-      - django
-      - cache
+      - api
+      - broker
     environment:
       - DJANGO_SETTINGS_MODULE=config.settings
-      - CELERY_BROKER_URL=${CELERY_BROKER_URL:-redis://cache:6379/1}
+      - CELERY_BROKER_URL=${CELERY_BROKER_URL:-redis://broker:6379/1}
       - CELERY_RESULT_BACKEND=${CELERY_RESULT_BACKEND:-redis://cache:6379/2}
 
   celery_low:
     build: .
-    command: celery -A config worker -l info -Q low_priority -c 2
+    command: pipenv run celery -A config worker -l info -Q low_priority -c 2
     depends_on:
-      - django
-      - cache
+      - api
+      - broker
     environment:
       - DJANGO_SETTINGS_MODULE=config.settings
-      - CELERY_BROKER_URL=${CELERY_BROKER_URL:-redis://cache:6379/1}
+      - CELERY_BROKER_URL=${CELERY_BROKER_URL:-redis://broker:6379/1}
       - CELERY_RESULT_BACKEND=${CELERY_RESULT_BACKEND:-redis://cache:6379/2}
 
   flower:
     build: .
-    command: celery -A config flower --broker=${CELERY_BROKER_URL:-redis://cache:6379/1}
+    command: pipenv run celery -A config flower --broker=${CELERY_BROKER_URL:-redis://broker:6379/1}
     ports:
       - "5555:5555"
     depends_on:
-      - django
-      - cache
+      - api
+      - broker
 
   silpo-mock:
     build:
@@ -108,6 +127,16 @@ services:
     container_name: catering-uklon-mock
     ports:
       - "8003:8000"
+  uber-mock:
+    build:
+      context: .
+      dockerfile: Dockerfile.test
+      target: uber
+    container_name: catering-uber-mock
+    ports:
+      - "8004:8000"
 
 volumes:
   db_data:
+  cache_data:
+  broker_data:

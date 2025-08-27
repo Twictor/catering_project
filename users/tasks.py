@@ -4,7 +4,7 @@ from django.core.mail import send_mail
 from django.conf import settings
 
 @shared_task(queue='low_priority')
-def send_activation_email_task(subject, message, recipient_list):
+def send_activation_email(subject, message, recipient_list):
     """
     Celery task to send an email asynchronously.
     """

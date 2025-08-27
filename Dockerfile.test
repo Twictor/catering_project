@@ -9,14 +9,13 @@ RUN apt-get update -y \
     && rm -rf /var/lib/apt/lists/*
 
 
-RUN pip install --upgrade pip pip setuptools uvicorn httpx fastapi pydantic
-
-
+RUN pip install --upgrade pip setuptools uvicorn httpx fastapi "pydantic<2"
 
 
  # Set working directory
 WORKDIR /app
-COPY ./catering/testproviders /app/testproviders
+# Копируем содержимое папки testproviders в /app
+COPY ./catering/testproviders/ /app/
 
 
 # ====================================================================
@@ -41,3 +40,10 @@ FROM base AS uklon
 EXPOSE 8000/tcp
 ENTRYPOINT [ "python" ]
 CMD ["-m", "uvicorn", "uklon:app", "--host", "0.0.0.0"]
+
+
+FROM base AS uber
+
+EXPOSE 8000/tcp
+ENTRYPOINT [ "python" ]
+CMD ["-m", "uvicorn", "uber:app", "--host", "0.0.0.0"]
