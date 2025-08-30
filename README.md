@@ -40,3 +40,18 @@
 *   Docker
 *   Docker Compose
 *   celery
+
+
+# Deployment
+
+- CI/CD
+    - Code Quality
+        - Linter Check
+        - Formating check (сову and imports)
+        - Types checking
+        - Running tests
+    - Deployment Automatiion
+        - GoDaddy  (by domain)
+    - SSL Certificate
+        - LetsEncrypt
+        - namecheap

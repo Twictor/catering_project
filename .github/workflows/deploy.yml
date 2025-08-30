@@ -1,0 +1,54 @@
+name: Deploy to DigitalOcean
+
+# This workflow will run on every push to the 'main' branch
+on:
+  push:
+    branches: [ "main" ]
+
+jobs:
+  deploy:
+    # Run on an Ubuntu virtual machine
+    runs-on: ubuntu-latest
+
+    steps:
+      # 1. Clone code from the repository
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      # 2. Connect to the server via SSH and execute commands
+      - name: Deploy to server
+        uses: appleboy/ssh-action@v1.0.3
+        with:
+          host: ${{ secrets.DO_HOST }}
+          username: ${{ secrets.DO_USER }}
+          key: ${{ secrets.DO_SSH_PRIVATE_KEY }}
+          script: |
+            # Navigate to the project folder
+            cd ~/catering_project
+
+            # Create .env file on the server from GitHub secret
+            echo "${{ secrets.ENV_FILE_CONTENT }}" > .env
+            echo "✅ .env file created on server"
+
+            # Stop old containers if they are running
+            docker compose down
+            echo "✅ Old containers stopped"
+
+            # Build and run new containers in the background
+            docker compose up --build -d
+            echo "✅ New containers built and started"
+
+            # Apply database migrations
+            # The -T flag disables pseudo-TTY allocation, which is necessary for non-interactive execution
+            docker compose exec -T web python manage.py migrate --noinput
+            echo "✅ Database migrations applied"
+
+            # Collect static files (good practice for production)
+            docker compose exec -T web python manage.py collectstatic --noinput --clear
+            echo "✅ Static files collected"
+
+            # Clean up old, unused Docker images to save space
+            docker image prune -f
+            echo "✅ Docker images pruned"
+
+            echo "🚀 Deployment finished successfully!"
