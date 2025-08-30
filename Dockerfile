@@ -14,12 +14,15 @@ RUN apt-get update -y \
 WORKDIR /app
 
 # Copy project files
-COPY . /app/
+COPY Pipfile Pipfile.lock ./
 
 # Install python dependencies
 RUN pip install --upgrade pip
 RUN pip install pipenv
-RUN pipenv sync
+RUN pipenv install --system --deploy
+
+
+COPY . .
 
 # Start application
 CMD ["python", "manage.py", "runserver", "0.0.0.0:8000"]
