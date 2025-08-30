@@ -1,7 +1,7 @@
 import logging
 import json
 from celery import shared_task
-from .shared.cache import CacheService
+from shared.cache import CacheService
 from .data_classes import TrackingOrder
 from .servises import all_orders_cooked
 from .mapper import RESTAURANT_EXTERNAL_TO_INTERNAL

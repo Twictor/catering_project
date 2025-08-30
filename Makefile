@@ -58,6 +58,15 @@ run:
 docker:
     docker compose up -d database cache brocker mailing
 
+fix:
+    python -m black .
+    python -m isort .
+
+check:
+    python -m flake8 .
+    python -m black . --check .
+    python -m isort . --check .
+    python -m mypy --exclude archive, docs --check-untuoed-defs .
 
 silpo_mock:
     python -m uvicorn silpo.mock.main:app --port 8001 --reload

@@ -1,0 +1,30 @@
+# ====================================================
+# DOCKER SECTION and APPLICATION
+# ====================================================
+DJANGO_SECRET_KEY = "django-insecure-_u2*0)=@b4px)on+aj!#u^iq73p#de(m@7b*cn*es(d7d63%c+"
+DJANGO_DEBUG = 
+DJANGO_ALLOWED_HOSTS = "*"
+
+# Database
+DJANGO_DB_NAME=catering_db
+DJANGO_DB_USER=postgres
+DJANGO_DB_PASSWORD=postgres
+DJANGO_DB_HOST=database
+DJANGO_DB_PORT=5432
+
+POSTGRES_DB=catering_db # Make sure this matches DJANGO_DB_NAME
+POSTGRES_USER=postgres   # Make sure this matches DJANGO_DB_USER
+POSTGRES_PASSWORD=postgres # Make sure this matches DJANGO_DB_PASSWORD
+POSTGRES_HOST=database
+POSTGRES_PORT=5432
+
+
+REDIS_HOST=cache
+REDIS_PORT=6379
+
+# broker
+DJANGO_BROKER_URL=redis://cache:6379/0
+# DJANGO_RESULT_BACKEND=redis://cache:6379/0
+
+# celery
+CELERY_TASK_ALWAYS_EAGER=1
