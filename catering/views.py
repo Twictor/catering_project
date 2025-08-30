@@ -304,7 +304,6 @@ class FoodAPIViewSet(viewsets.ViewSet):
         """
         Handle KFC webhook notifications.
         """
-        breakpoint() # TODO: Remove
         data = request.data
         process_kfc_webhook_data.delay(data)
         return Response({"message": "Webhook received"})
@@ -396,12 +395,11 @@ def kfc_webhook(request: Request):
     return JsonResponse({}, status=200)
 
 
-# Заглушка для FoodAPIViewSet, если он еще не определен
 class FoodAPIViewSet(viewsets.ViewSet):
     def dishes(self, request):
         return Response({"message": "Dishes endpoint"})
 
-# Заглушки для других view-функций
+
 @api_view(['GET'])
 def active_deliveries(request):
     return JsonResponse({"message": "Active deliveries endpoint"})
@@ -458,7 +456,7 @@ def kfc_webhook(request):
 
     # print(f"KFC Webhook received data: {data}")
 
-    return JsonResponse({"message": "ok"})
+    return JsonResponse({"message": "ok from GitHub Actions!"})
 
 router = routers.DefaultRouter()
 router.register(r'food', FoodAPIViewSet, basename='food')

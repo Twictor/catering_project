@@ -1,3 +1,4 @@
+
 name: Deploy to DigitalOcean
 
 # This workflow will run on every push to the 'main' branch
@@ -11,7 +12,7 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      # 1. Clone code from the repository
+      # 1. This step is not strictly needed for this script but is good practice
       - name: Checkout code
         uses: actions/checkout@v4
 
@@ -25,6 +26,10 @@ jobs:
           script: |
             # Navigate to the project folder
             cd ~/catering_project
+
+            # Pull the latest changes from the main branch
+            git pull origin main
+            echo "✅ Code updated from repository"
 
             # Create .env file on the server from GitHub secret
             echo "${{ secrets.ENV_FILE_CONTENT }}" > .env
