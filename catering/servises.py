@@ -248,7 +248,7 @@ def order_in_kfc(order_id: int, items):
         "status": internal_status,
     }
 
-    print(f"Created KFC Order. External ID": {response.id} Status: {internal_status}) 
+    print(f"Created KFC Order. External ID: {response.id}, Status: {internal_status}") 
     cache.set(
         namespace="orders", 
         key=str(order_id), 
