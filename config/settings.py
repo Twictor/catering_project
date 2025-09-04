@@ -46,7 +46,7 @@ INSTALLED_APPS = [
     "rest_framework",
     "rest_framework_simplejwt",
     "import_export",
-    'drf_spectacular',
+    # 'drf_spectacular',
     # local apps
     "catering",  
     "users",
@@ -240,9 +240,9 @@ CELERY_TASK_ROUTES = {
     'catering.tasks.order_in_kfc': {'queue': 'high_priority'},
 }
 
-SPECTACULAR_SETTINGS = {
-    'TITLE': 'Catering Project API',
-    'DESCRIPTION': 'API for the catering management application',
-    'VERSION': '1.0.0',
-    'SERVE_INCLUDE_SCHEMA': False,
-}
+# SPECTACULAR_SETTINGS = {
+#     'TITLE': 'Catering Project API',
+#     'DESCRIPTION': 'API for the catering management application',
+#     'VERSION': '1.0.0',
+#     'SERVE_INCLUDE_SCHEMA': False,
+# }
