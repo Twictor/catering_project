@@ -25,33 +25,34 @@ jobs:
           host: ${{ secrets.HOST }}
           username: ${{ secrets.USERNAME }}
           key: ${{ secrets.SSH_PRIVATE_KEY }}
+          port: 22
           script: |
             # Navigate to the project folder
             cd ~/catering_project
 
             # Create .env.prod file on the server from GitHub secret
-            echo "$ENV_PROD_FILE_CONTENT" > .env.prod
+            echo "${{ secrets.ENV_PROD_FILE_CONTENT }}" > .env.prod
             echo "✅ .env.prod file created on server"
-
+            
             # Stop old containers if they are running
             docker compose down
             echo "✅ Old containers stopped"
-
+            
             # Build and run new containers in the background
             docker compose --env-file .env.prod up --build -d
             echo "✅ New containers built and started"
-
+            
             # Apply database migrations
             # The -T flag disables pseudo-TTY allocation, which is necessary for non-interactive execution
             docker compose exec -T web python manage.py migrate --noinput
             echo "✅ Database migrations applied"
-
+            
             # Collect static files
             docker compose exec -T web python manage.py collectstatic --noinput --clear
             echo "✅ Static files collected"
-
+            
             # Clean up old, unused Docker images to save space
             docker image prune -f
             echo "✅ Docker images pruned"
-
+            
             echo "🚀 Deployment finished successfully!"
