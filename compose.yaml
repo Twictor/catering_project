@@ -1,15 +1,16 @@
 services:
   api:
-    image: myapi:latest
     build:
+      context: .
       dockerfile: Dockerfile
-    command: python manage.py runserver 0.0.0.0:8000
-    ports:
-      - "8000:8000"  
+    image: catering_api:latest
+    command: "gunicorn config.wsgi:application --bind 0.0.0.0:8000"
     env_file:
       - .env
+    environment:
+      - PYTHONPATH=/app
     depends_on:
-      db:
+      database:
         condition: service_healthy
       cache:
         condition: service_started
@@ -17,23 +18,25 @@ services:
         condition: service_started
     volumes:
       - .:/app
+      - staticfiles:/app/staticfiles
 
-  db:
-    image: postgres:16.3-alpine
+  database:
+    image: postgres:16-alpine
     container_name: catering_db
     restart: always
+    volumes:
+      - postgres_data:/var/lib/postgresql/data/
     env_file:
       - .env
-    volumes:
-      - db_data:/var/lib/postgresql/data
+    ports:
+      - "5432:5432"
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U $POSTGRES_USER -d $POSTGRES_DB"]
       interval: 5s
       timeout: 5s
       retries: 5
-    
 
-  cache: 
+  cache:
     image: redis:7-alpine
     container_name: catering_cache
     restart: always
@@ -57,84 +60,69 @@ services:
       - "1025:1025"
       - "8025:8025"
 
-
-  celery_worker:
+  worker:
     build:
       context: .
       dockerfile: Dockerfile
-    command: pipenv run celery -A config worker -l info
+    command: celery -A config worker -l info -Q high_priority,default,low_priority
     env_file:
       - .env
-    depends_on:
-      - broker
-      - db
-
-      
-  celery_high:
-    build: .
-    command: pipenv run celery -A config worker -l info -Q high_priority -c 2
+    volumes:
+      - .:/app
     depends_on:
       - api
       - broker
     environment:
+      - PYTHONPATH=/app
       - DJANGO_SETTINGS_MODULE=config.settings
-      - CELERY_BROKER_URL=${CELERY_BROKER_URL:-redis://broker:6379/1}
-      - CELERY_RESULT_BACKEND=${CELERY_RESULT_BACKEND:-redis://cache:6379/2}
+      - CELERY_BROKER_URL=${CELERY_BROKER_URL:-redis://broker:6379/0}
+      - CELERY_RESULT_BACKEND=${CELERY_RESULT_BACKEND:-redis://cache:6379/1}
 
-  celery_low:
+  celery_beat:
     build: .
-    command: pipenv run celery -A config worker -l info -Q low_priority -c 2
+    command: celery -A config beat -l info
+    env_file:
+      - .env
+    volumes:
+      - .:/app
     depends_on:
       - api
       - broker
     environment:
+      - PYTHONPATH=/app
       - DJANGO_SETTINGS_MODULE=config.settings
-      - CELERY_BROKER_URL=${CELERY_BROKER_URL:-redis://broker:6379/1}
-      - CELERY_RESULT_BACKEND=${CELERY_RESULT_BACKEND:-redis://cache:6379/2}
+      - CELERY_BROKER_URL=${CELERY_BROKER_URL:-redis://broker:6379/0}
+      - CELERY_RESULT_BACKEND=${CELERY_RESULT_BACKEND:-redis://cache:6379/1}
 
   flower:
     build: .
-    command: pipenv run celery -A config flower --broker=${CELERY_BROKER_URL:-redis://broker:6379/1}
+    command: celery -A config flower --broker=${CELERY_BROKER_URL:-redis://broker:6379/0}
     ports:
       - "5555:5555"
+    env_file:
+      - .env
     depends_on:
       - api
       - broker
+    environment:
+      - PYTHONPATH=/app
+      - DJANGO_SETTINGS_MODULE=config.settings
+      - CELERY_BROKER_URL=${CELERY_BROKER_URL:-redis://broker:6379/0}
+      - CELERY_RESULT_BACKEND=${CELERY_RESULT_BACKEND:-redis://cache:6379/1}
 
-  silpo-mock:
+  nginx:
     build:
-      context: .
-      dockerfile: Dockerfile.test
-      target: silpo
-    container_name: catering-silpo-mock
+        context: ./nginx
     ports:
-      - "8001:8000"
-  kfc-mock:
-    build:
-      context: .
-      dockerfile: Dockerfile.test
-      target: kfc
-    container_name: catering-kfc-mock
-    ports:
-      - "8002:8000"
-  uklon-mock:
-    build:
-      context: .
-      dockerfile: Dockerfile.test
-      target: uklon
-    container_name: catering-uklon-mock
-    ports:
-      - "8003:8000"
-  uber-mock:
-    build:
-      context: .
-      dockerfile: Dockerfile.test
-      target: uber
-    container_name: catering-uber-mock
-    ports:
-      - "8004:8000"
+      - "80:80"
+      - "443:443"
+    volumes:
+      - staticfiles:/app/staticfiles
+    depends_on:
+      - api
 
 volumes:
-  db_data:
+  postgres_data:
   cache_data:
   broker_data:
+  staticfiles:

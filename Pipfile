@@ -17,7 +17,8 @@ python-dotenv = "*"
 celery = "*"
 celery-types = "*"
 redis = "*"
-gunicorn = "==23.0.0"
+gunicorn = "*"
+drf-spectacular = "*"
 
 [dev-packages]
 black = "==25.1.0"

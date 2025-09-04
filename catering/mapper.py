@@ -8,7 +8,7 @@ RESTAURANT_EXTERNAL_TO_INTERNAL: dict[str, dict[str, OrderStatus]] = {
         silpo.OrderStatus.COOKED: OrderStatus.COOKED,        
     },
     "kfc": {
-        kfc.OrderStatus.NOT_STARTED: OrderStatus.NOT_STARTED,
+        kfc.OrderStatus.PENDING: OrderStatus.NOT_STARTED,
         kfc.OrderStatus.COOKING: OrderStatus.COOKING,
         kfc.OrderStatus.COOKED: OrderStatus.COOKED,        
     },
