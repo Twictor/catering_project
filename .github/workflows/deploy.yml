@@ -16,28 +16,12 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
 
-      # 2. DEBUG: Check if secrets are available
-      - name: Check Secrets
-        run: |
-          if [ -z "${{ secrets.DO_HOST }}" ]; then
-            echo "DO_HOST secret is NOT set!"
-          else
-            echo "DO_HOST secret is set."
-          fi
-          if [ -z "${{ secrets.DO_USER }}" ]; then
-            echo "DO_USER secret is NOT set!"
-          else
-            echo "DO_USER secret is set."
-          fi
-          if [ -z "${{ secrets.DO_SSH_PRIVATE_KEY }}" ]; then
-            echo "DO_SSH_PRIVATE_KEY secret is NOT set!"
-          else
-            echo "DO_SSH_PRIVATE_KEY secret is set."
-          fi
-
-      # 3. Connect to the server via SSH and execute commands
+      # 2. Connect to the server via SSH and execute commands
       - name: Deploy to Server
         uses: appleboy/ssh-action@v1.0.3
+        # Pass the secret as an environment variable to the action
+        env:
+          ENV_FILE: ${{ secrets.ENV_FILE_CONTENT }}
         with:
           host: ${{ secrets.DO_HOST }}
           username: ${{ secrets.DO_USER }}
@@ -47,10 +31,9 @@ jobs:
             # Navigate to the project folder
             cd ~/catering_project
 
-            # Create .env.prod file on the server from GitHub secret safely
-            cat << 'EOF' > .env.prod
-            ${{ secrets.ENV_FILE_CONTENT }}
-            EOF
+            # Create .env.prod file on the server from the environment variable
+            # The quotes around "$ENV_FILE" are crucial to preserve line breaks and special characters
+            echo "$ENV_FILE" > .env.prod
             echo "✅ .env.prod file created on server"
             
             # Stop old containers if they are running
