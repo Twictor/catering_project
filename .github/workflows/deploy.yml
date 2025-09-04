@@ -16,22 +16,39 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
 
-      # 2. Connect to the server via SSH and execute commands
+      # 2. DEBUG: Check if secrets are available
+      - name: Check Secrets
+        run: |
+          if [ -z "${{ secrets.DO_HOST }}" ]; then
+            echo "DO_HOST secret is NOT set!"
+          else
+            echo "DO_HOST secret is set."
+          fi
+          if [ -z "${{ secrets.DO_USER }}" ]; then
+            echo "DO_USER secret is NOT set!"
+          else
+            echo "DO_USER secret is set."
+          fi
+          if [ -z "${{ secrets.DO_SSH_PRIVATE_KEY }}" ]; then
+            echo "DO_SSH_PRIVATE_KEY secret is NOT set!"
+          else
+            echo "DO_SSH_PRIVATE_KEY secret is set."
+          fi
+
+      # 3. Connect to the server via SSH and execute commands
       - name: Deploy to Server
         uses: appleboy/ssh-action@v1.0.3
-        env:
-          ENV_PROD_FILE_CONTENT: ${{ secrets.ENV_PROD_FILE }}
         with:
-          host: ${{ secrets.HOST }}
-          username: ${{ secrets.USERNAME }}
-          key: ${{ secrets.SSH_PRIVATE_KEY }}
+          host: ${{ secrets.DO_HOST }}
+          username: ${{ secrets.DO_USER }}
+          key: ${{ secrets.DO_SSH_PRIVATE_KEY }}
           port: 22
           script: |
             # Navigate to the project folder
             cd ~/catering_project
 
             # Create .env.prod file on the server from GitHub secret
-            echo "${{ secrets.ENV_PROD_FILE_CONTENT }}" > .env.prod
+            echo "${{ secrets.ENV_FILE_CONTENT }}" > .env.prod
             echo "✅ .env.prod file created on server"
             
             # Stop old containers if they are running
