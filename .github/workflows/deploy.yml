@@ -17,30 +17,28 @@ jobs:
         uses: actions/checkout@v4
 
       # 2. Connect to the server via SSH and execute commands
-      - name: Deploy to server
+      - name: Deploy to Server
         uses: appleboy/ssh-action@v1.0.3
+        env:
+          ENV_PROD_FILE_CONTENT: ${{ secrets.ENV_PROD_FILE }}
         with:
-          host: ${{ secrets.DO_HOST }}
-          username: ${{ secrets.DO_USER }}
-          key: ${{ secrets.DO_SSH_PRIVATE_KEY }}
+          host: ${{ secrets.HOST }}
+          username: ${{ secrets.USERNAME }}
+          key: ${{ secrets.SSH_PRIVATE_KEY }}
           script: |
             # Navigate to the project folder
             cd ~/catering_project
 
-            # Pull the latest changes from the main branch
-            git pull origin main
-            echo "✅ Code updated from repository"
-
-            # Create .env file on the server from GitHub secret
-            echo "${{ secrets.ENV_FILE_CONTENT }}" > .env
-            echo "✅ .env file created on server"
+            # Create .env.prod file on the server from GitHub secret
+            echo "$ENV_PROD_FILE_CONTENT" > .env.prod
+            echo "✅ .env.prod file created on server"
 
             # Stop old containers if they are running
             docker compose down
             echo "✅ Old containers stopped"
 
             # Build and run new containers in the background
-            docker compose up --build -d
+            docker compose --env-file .env.prod up --build -d
             echo "✅ New containers built and started"
 
             # Apply database migrations
@@ -48,7 +46,7 @@ jobs:
             docker compose exec -T web python manage.py migrate --noinput
             echo "✅ Database migrations applied"
 
-            # Collect static files (good practice for production)
+            # Collect static files
             docker compose exec -T web python manage.py collectstatic --noinput --clear
             echo "✅ Static files collected"
 
