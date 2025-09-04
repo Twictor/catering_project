@@ -47,8 +47,10 @@ jobs:
             # Navigate to the project folder
             cd ~/catering_project
 
-            # Create .env.prod file on the server from GitHub secret
-            echo "${{ secrets.ENV_FILE_CONTENT }}" > .env.prod
+            # Create .env.prod file on the server from GitHub secret safely
+            cat << 'EOF' > .env.prod
+            ${{ secrets.ENV_FILE_CONTENT }}
+            EOF
             echo "✅ .env.prod file created on server"
             
             # Stop old containers if they are running
