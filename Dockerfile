@@ -1,4 +1,4 @@
-FROM python:3.13-slim AS base
+FROM python:3.12-slim AS base
 
 ENV PYTHONUNBUFFERED=1
 ENV PYTHONDONTWRITEBYTECODE=1
@@ -14,12 +14,12 @@ RUN apt-get update -y \
 WORKDIR /app
 
 # Copy project files
-COPY . /app/
+COPY requirements.txt .
+RUN pip install --no-cache-dir -r requirements.txt
+RUN pip list
 
-# Install python dependencies
-RUN pip install --upgrade pip
-RUN pip install pipenv
-RUN pipenv sync
+
+COPY . .
 
 # Start application
 CMD ["python", "manage.py", "runserver", "0.0.0.0:8000"]
@@ -54,7 +54,7 @@ CMD ["-m", "uvicorn", "tests.providers.silpo:app", "--host", "0.0.0.0"]
 
 FROM base AS kfc
 
-RUN pipenv sync --dev --system
+RUN pipenv sync --dev --system # Install dev dependencies as fastapi is a dev dependency
 
 EXPOSE 8000/tcp
 ENTRYPOINT [ "python" ]
@@ -72,8 +72,10 @@ CMD ["-m", "uvicorn", "tests.providers.uklon:app", "--host", "0.0.0.0"]
 
 FROM base AS api
 
-EXPOSE 8000
+COPY . .
 
+EXPOSE 8000
+CMD ["python", "manage.py", "runserver", "0.0.0.0:8000"]
 
 FROM base AS kfc_mock
 

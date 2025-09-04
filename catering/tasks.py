@@ -2,9 +2,11 @@ import logging
 import json
 from celery import shared_task
 from shared.cache import CacheService
-from .data_classes import TrackingOrder
 from .servises import all_orders_cooked
 from .mapper import RESTAURANT_EXTERNAL_TO_INTERNAL
+from .data_classes import TrackingOrder
+from .enums import OrderStatus
+
 
 logger = logging.getLogger(__name__)
 
@@ -77,3 +79,4 @@ def schedule_order(order_id: int):
     # Placeholder for schedule_order logic if needed
     logger.info(f"Scheduling order {order_id}")
     pass
+

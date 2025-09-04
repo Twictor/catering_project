@@ -1,15 +1,17 @@
 
-from shared.cache import CasheService
-from django.db.models import QuerySet
-from .enums import OrderStatus
-from .models import Order, Restaurant, OrderItem
-from .providers import silpo, uklon, kfc
-from .mapper import RESTAURANT_EXTERNAL_TO_INTERNAL
-from dataclasses import asdict
-from .data_classes import TrackingOrder
+from dataclasses import dataclass, asdict, field
 from time import sleep
-from config import celery_app
-from .tasks import order_delivery
+from typing import Any
+
+from config.celery import app as celery_app
+from providers import uklon, silpo, kfc
+
+from shared.cache import CacheService
+from .data_classes import TrackingOrder
+from .enums import OrderStatus
+from .mapper import RESTAURANT_EXTERNAL_TO_INTERNAL
+from .models import Order, OrderItem, Restaurant
+from django.db.models import QuerySet
 
 
 @dataclass
@@ -42,23 +44,51 @@ class TrackingOrder:
     delivery_providers: dict = field(default_factory=dict)
 
 
-def all_orders_cooked(order_id: int) -> bool:
-    caсhe = CasheService()
-    tracking_order = TrackingOrder(**caсhe.get(namespace="orders", key=str(order_id)))
-    print(f"Cheking if all orders are cooked: {tracking_order.restaurants}")
+def build_request_body(restaurant: Restaurant, items: QuerySet[OrderItem]) -> dict:
+    """Builds a request body based on the restaurant."""
+    if restaurant.name.lower() == "silpo":
+        return {
+            "items": [
+                {"id": item.dish.external_id, "quantity": item.quantity}
+                for item in items
+            ]
+        }
+    elif restaurant.name.lower() == "kfc":
+        return {
+            "order": [
+                {"dish": item.dish.name, "quantity": item.quantity} for item in items
+            ]
+        }
+    return {}
 
-    if all(
-        (
-            payload["status"] == OrderStatus.COOKED
-        for _, payload in tracking_order.restaurants.items()
-       )
-    ):
-        Order.objects.filter(pk=order_id).update(status=Order.COOKED)
-        print(f"All orders are COOKED")
-        # Startorder delivery 
-        order_delivery.delay(order_id)
+
+
+def all_orders_cooked(order_id: int):
+    """
+    Checks if all parts of an order are cooked.
+    If so, updates the main order status and triggers delivery.
+    """
+    from .models import Order  # Local import to prevent circular dependency
+
+    cache = CacheService()
+    tracking_order_data = cache.get(namespace="orders", key=str(order_id))
+
+    if not tracking_order_data:
+        print(f"No tracking order data found in cache for order_id: {order_id}")
+        return
+
+    tracking_order = TrackingOrder(**tracking_order_data)
+    all_cooked = all(
+        info["status"] == OrderStatus.COOKED.value
+        for info in tracking_order.restaurants.values()
+    )
+
+    if all_cooked:
+        print(f"All parts of order {order_id} are cooked. Updating status and starting delivery.")
+        Order.objects.filter(pk=order_id).update(status=OrderStatus.COOKED)
+        track_delivery.delay(order_id)
     else:
-        print(f"Not all orders are cooked: {tracking_order=}")  
+        print(f"Order {order_id} is not fully cooked yet. Current statuses: {tracking_order.restaurants}")
 
 
 @celery_app.task(queue='default')
@@ -248,7 +278,7 @@ def order_in_kfc(order_id: int, items):
         "status": internal_status,
     }
 
-    print(f"Created KFC Order. External ID": {response.id} Status: {internal_status}) 
+    print(f"Created KFC Order. External ID: {response.id}, Status: {internal_status}") 
     cache.set(
         namespace="orders", 
         key=str(order_id), 

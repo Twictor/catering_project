@@ -14,6 +14,7 @@ https://docs.djangoproject.com/en/5.2/ref/settings/
 from datetime import timedelta
 from pathlib import Path
 import os
+from kombu import Queue
 
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
 BASE_DIR = Path(__file__).resolve().parent.parent
@@ -224,7 +225,6 @@ CELERY_BROKER_TRANSPORT_OPTIONS = {
 }
 
 # Celery Queues
-from kombu import Queue
 
 CELERY_TASK_QUEUES = (
     Queue('high_priority', routing_key='high_priority'),
