@@ -46,6 +46,7 @@ INSTALLED_APPS = [
     "rest_framework",
     "rest_framework_simplejwt",
     "import_export",
+    'drf_spectacular',
     # local apps
     "catering",  
     "users",
@@ -160,7 +161,9 @@ REST_FRAMEWORK = {
         "rest_framework_simplejwt.authentication.JWTAuthentication",
     ),
     'DEFAULT_PAGINATION_CLASS': 'rest_framework.pagination.LimitOffsetPagination',
-    'PAGE_SIZE': 10  # default page size for pagination    # ... other settings
+    'PAGE_SIZE': 10,  # default page size for pagination    
+    'DEFAULT_SCHEMA_CLASS': 'drf_spectacular.openapi.AutoSchema',
+    # ... other settings
     # Remove or comment out the following line if it exists and requires authentication
     # 'DEFAULT_PERMISSION_CLASSES': [
     #     'rest_framework.permissions.IsAuthenticated',
@@ -235,4 +238,11 @@ CELERY_TASK_ROUTES = {
     'users.tasks.send_activation_email': {'queue': 'low_priority'},
     'catering.tasks.order_in_silpo': {'queue': 'high_priority'},
     'catering.tasks.order_in_kfc': {'queue': 'high_priority'},
+}
+
+SPECTACULAR_SETTINGS = {
+    'TITLE': 'Catering Project API',
+    'DESCRIPTION': 'API for the catering management application',
+    'VERSION': '1.0.0',
+    'SERVE_INCLUDE_SCHEMA': False,
 }
